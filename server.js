@@ -5,6 +5,49 @@ import si from 'systeminformation'
 const app = express()
 const PORT = 3001
 
+// Rate limiting simple en memoria para prevenir abusos
+const rateLimitMap = new Map()
+const RATE_LIMIT_WINDOW = 60000 // 1 minuto
+const RATE_LIMIT_MAX_REQUESTS = 100 // 100 peticiones por minuto
+
+function checkRateLimit(req) {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown'
+  const now = Date.now()
+
+  // Limpiar entradas viejas
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now - value.timestamp > RATE_LIMIT_WINDOW) {
+      rateLimitMap.delete(key)
+    }
+  }
+
+  // Obtener o crear entrada para este IP
+  const record = rateLimitMap.get(ip) || { count: 0, timestamp: now }
+
+  // Resetear contador si la ventana expiró
+  if (now - record.timestamp > RATE_LIMIT_WINDOW) {
+    record.count = 0
+    record.timestamp = now
+  }
+
+  record.count++
+  rateLimitMap.set(ip, record)
+
+  return record.count <= RATE_LIMIT_MAX_REQUESTS
+}
+
+// Middleware de rate limiting
+function rateLimitMiddleware(req, res, next) {
+  if (!checkRateLimit(req)) {
+    return res.status(429).json({
+      error: 'Too many requests',
+      message: 'Has excedido el límite de peticiones. Por favor espera un momento.',
+      retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000)
+    })
+  }
+  next()
+}
+
 // Configuración de CORS con orígenes permitidos
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:5173',
@@ -82,7 +125,7 @@ async function calculateMetrics() {
 }
 
 // Endpoint: Obtener todas las métricas actuales
-app.get('/api/metrics', async (req, res) => {
+app.get('/api/metrics', rateLimitMiddleware, async (req, res) => {
   try {
     const now = Date.now()
 
@@ -117,10 +160,9 @@ app.get('/api/metrics', async (req, res) => {
 // Endpoint: Obtener historial (opcional - para persistencia futura)
 app.get('/api/metrics/history', async (req, res) => {
   // Validar y sanitizar el parámetro limit (entre 1 y 100)
-  const limit = Math.min(
-    Math.max(parseInt(req.query.limit) || 20, 1),
-    100
-  )
+  const rawLimit = parseInt(req.query.limit, 10)
+  const isValidLimit = Number.isInteger(rawLimit) && rawLimit > 0 && rawLimit <= 100
+  const limit = isValidLimit ? rawLimit : 20
 
   // Por ahora retornamos datos vacíos ya que no persistemos
   res.json({

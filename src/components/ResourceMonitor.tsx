@@ -13,10 +13,25 @@ import {
 } from "lucide-react"
 
 // Constantes de configuración
-const DEFAULT_API_URL = 'http://localhost:3001'
 const HISTORY_LENGTH = 20
 const POLL_INTERVAL_MS = 5000
 const UPDATE_INTERVAL_MS = 5000
+
+// Detectar automáticamente la ruta base de la aplicación
+// - En desarrollo: podría ser http://localhost:3001 (si se accede directo al backend)
+// - En producción con Docker: usar ruta relativa para que el navegador la resuelva correctamente
+const getApiBaseUrl = (): string => {
+  // Si hay una variable de entorno configurada, usarla
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+
+  // Usar ruta relativa (./) para que el navegador la resuelva relativa a la ubicación actual
+  // Si estamos en /monitor/, ./api/metrics se resolverá como /monitor/api/metrics
+  return '.'
+}
+
+const API_URL: string = getApiBaseUrl()
 
 interface ResourceData {
   cpu: number
@@ -48,9 +63,6 @@ interface ApiResponse {
   uptime: string
   timestamp: number
 }
-
-// URL de la API del servidor
-const API_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL
 
 // Función helper para formatear tiempo
 const formatTimeLabel = (date: Date): string => {
@@ -176,8 +188,8 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
   useEffect(() => {
     if (loading) return
 
-    const abortController = new AbortController()
     const intervalId = setInterval(async () => {
+      const abortController = new AbortController()
       try {
         const newData = await fetchMetrics(abortController.signal)
 
@@ -197,12 +209,13 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error de conexión')
+      } finally {
+        abortController.abort()
       }
     }, POLL_INTERVAL_MS)
 
     return () => {
       clearInterval(intervalId)
-      abortController.abort()
     }
   }, [loading, fetchMetrics])
 
