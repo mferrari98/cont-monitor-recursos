@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@layer base {
+  /* Force color scheme to prevent browser interference */
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* Prevent any OS/browser color scheme interference */
+  html, body {
+    forced-color-adjust: none;
+  }
+
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 5%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 5%;
+    --primary: 151 100% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 5% 18%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 151 100% 32%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 89%;
+    --input: 0 0% 89%;
+    --ring: 151 100% 32%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 100%;
+    --card: 210 5% 18%;
+    --card-foreground: 0 0% 100%;
+    --popover: 210 5% 18%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 151 100% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 5% 18%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 151 100% 32%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 151 100% 32%;
+    /* Gradient custom properties for dark theme */
+    --gradient-start: 250 8% 8%; /* #141413 */
+    --gradient-mid: 250 5% 4%;   /* #0a0a09 */
+    --gradient-end: 0 0% 0%;     /* #000000 */
+    --contour-color: 108 100% 96%; /* #6ccff6 */
+  }
+
+  :root:not(.dark) {
+    /* Gradient custom properties for light theme */
+    --gradient-start: 48 4% 98%; /* #FAF9F5 */
+    --gradient-mid: 48 2% 97%;   /* #f8f8f6 */
+    --gradient-end: 0 0% 100%;   /* #FFFFFF */
+    --contour-color: 210 4% 12%; /* #1F1E1D */
+  }
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Animaciones de entrada */
+@keyframes slideInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Efecto shimmer para barras de progreso */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: slideInScale 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+  opacity: 0;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Stagger effect para las cards - más rápido */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+
+/*
+ * Gradient Background Implementation
+ */
+.gradient-background {
+  background: linear-gradient(180deg,
+    hsl(var(--gradient-start)) 0%,
+    hsl(var(--gradient-mid)) 50%,
+    hsl(var(--gradient-end)) 100%
+  );
+  position: relative;
+}
+
+/*
+ * Progressive enhancement fallback
+ */
+@supports not (background: linear-gradient(90deg, #fff, #000)) {
+  .gradient-background {
+    background-color: var(--background);
+  }
+}
+
+/* Force custom hex colors */
+.bg-\[141413\] { background-color: #141413 !important; }
+.bg-\[1F1E1D\] { background-color: #1F1E1D !important; }
+.bg-\[E5E4E0\] { background-color: #E5E4E0 !important; }
+.bg-\[FAF9F5\] { background-color: #FAF9F5 !important; }
+.bg-\[FFFFFF\] { background-color: #FFFFFF !important; }
+
+.text-\[141413\] { color: #141413 !important; }
+.text-\[1F1E1D\] { color: #1F1E1D !important; }
+.text-\[E5E4E0\] { color: #E5E4E0 !important; }
+
+.border-\[141413\] { border-color: #141413 !important; }
+.border-\[1F1E1D\] { border-color: #1F1E1D !important; }
+.border-\[E5E4E0\] { border-color: #E5E4E0 !important; }
+.border-\[2A2A28\] { border-color: #2A2A28 !important; }
+
+/* Ensure gradient backgrounds are always applied correctly */
+.gradient-background {
+  background: linear-gradient(180deg,
+    hsl(var(--gradient-start)) 0%,
+    hsl(var(--gradient-mid)) 50%,
+    hsl(var(--gradient-end)) 100%
+  ) !important;
+}
