@@ -3,65 +3,114 @@ import cors from 'cors'
 import si from 'systeminformation'
 
 const app = express()
+app.set('trust proxy', 1) // Trust first proxy for real client IPs
+app.disable('x-powered-by')
+
+app.use((req, res, next) => {
+  res.set('X-Frame-Options', 'SAMEORIGIN')
+  res.set('X-Content-Type-Options', 'nosniff')
+  res.set('Referrer-Policy', 'no-referrer')
+  res.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+  next()
+})
+
 const PORT = 3001
+
+const API_TOKEN = process.env.MONITOR_API_TOKEN || ''
+
+if (!API_TOKEN && process.env.NODE_ENV !== 'development') {
+  console.warn('[WARN] MONITOR_API_TOKEN no configurado. Las metricas quedan expuestas si no hay auth externa.')
+}
+
+function requireApiToken(req, res, next) {
+  if (!API_TOKEN) {
+    return next()
+  }
+
+  const tokenHeader = req.header('X-Api-Token') || ''
+  const authHeader = req.header('Authorization') || ''
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+
+  if (tokenHeader !== API_TOKEN && bearer !== API_TOKEN) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Token invalido'
+    })
+  }
+
+  return next()
+}
 
 // Rate limiting simple en memoria para prevenir abusos
 const rateLimitMap = new Map()
 const RATE_LIMIT_WINDOW = 60000 // 1 minuto
 const RATE_LIMIT_MAX_REQUESTS = 100 // 100 peticiones por minuto
+const RATE_LIMIT_CLEANUP_INTERVAL = 60000
+
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now >= value.resetAt) {
+      rateLimitMap.delete(key)
+    }
+  }
+}, RATE_LIMIT_CLEANUP_INTERVAL).unref()
 
 function checkRateLimit(req) {
   const ip = req.ip || req.connection.remoteAddress || 'unknown'
   const now = Date.now()
 
-  // Limpiar entradas viejas
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now - value.timestamp > RATE_LIMIT_WINDOW) {
-      rateLimitMap.delete(key)
-    }
+  const record = rateLimitMap.get(ip) || {
+    count: 0,
+    resetAt: now + RATE_LIMIT_WINDOW
   }
 
-  // Obtener o crear entrada para este IP
-  const record = rateLimitMap.get(ip) || { count: 0, timestamp: now }
-
-  // Resetear contador si la ventana expiró
-  if (now - record.timestamp > RATE_LIMIT_WINDOW) {
+  if (now >= record.resetAt) {
     record.count = 0
-    record.timestamp = now
+    record.resetAt = now + RATE_LIMIT_WINDOW
   }
 
   record.count++
   rateLimitMap.set(ip, record)
 
-  return record.count <= RATE_LIMIT_MAX_REQUESTS
+  return {
+    allowed: record.count <= RATE_LIMIT_MAX_REQUESTS,
+    retryAfter: Math.max(0, Math.ceil((record.resetAt - now) / 1000))
+  }
 }
 
 // Middleware de rate limiting
 function rateLimitMiddleware(req, res, next) {
-  if (!checkRateLimit(req)) {
+  const result = checkRateLimit(req)
+  if (!result.allowed) {
+    res.set('Retry-After', String(result.retryAfter))
     return res.status(429).json({
       error: 'Too many requests',
       message: 'Has excedido el límite de peticiones. Por favor espera un momento.',
-      retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000)
+      retryAfter: result.retryAfter
     })
   }
   next()
 }
 
 // Configuración de CORS con orígenes permitidos
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://10.10.9.246:5173',
-  'http://10.10.9.246:5174'
-]
+const ALLOWED_ORIGINS = new Set(
+  (process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://10.10.9.246:5173',
+    'http://10.10.9.246:5174'
+  ])
+    .map(origin => origin.trim())
+    .filter(Boolean)
+)
 
 app.use(cors({
   origin: (origin, callback) => {
     // Permitir requests sin origen (curl, Postman, apps móviles)
     if (!origin) return callback(null, true)
 
-    if (ALLOWED_ORIGINS.includes(origin)) {
+    if (ALLOWED_ORIGINS.has(origin)) {
       callback(null, true)
     } else {
       callback(new Error('Origen no permitido por CORS'))
@@ -70,6 +119,11 @@ app.use(cors({
   credentials: true,
   methods: ['GET']
 }))
+
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store')
+  next()
+})
 
 // Cache para métricas - evita llamadas excesivas a systeminformation
 const CACHE_TTL = 2500 // 2.5 segundos
@@ -125,7 +179,7 @@ async function calculateMetrics() {
 }
 
 // Endpoint: Obtener todas las métricas actuales
-app.get('/api/metrics', rateLimitMiddleware, async (req, res) => {
+app.get('/api/metrics', rateLimitMiddleware, requireApiToken, async (req, res) => {
   try {
     const now = Date.now()
 
@@ -158,7 +212,7 @@ app.get('/api/metrics', rateLimitMiddleware, async (req, res) => {
 })
 
 // Endpoint: Obtener historial (opcional - para persistencia futura)
-app.get('/api/metrics/history', async (req, res) => {
+app.get('/api/metrics/history', rateLimitMiddleware, requireApiToken, async (req, res) => {
   // Validar y sanitizar el parámetro limit (entre 1 y 100)
   const rawLimit = parseInt(req.query.limit, 10)
   const isValidLimit = Number.isInteger(rawLimit) && rawLimit > 0 && rawLimit <= 100
@@ -173,9 +227,28 @@ app.get('/api/metrics/history', async (req, res) => {
   })
 })
 
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'Not found',
+    message: 'Ruta API desconocida'
+  })
+})
+
 // Health check
 app.get('/health', (req, res) => {
+  res.set('Cache-Control', 'no-store')
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+app.use((err, req, res, next) => {
+  if (err instanceof Error && err.message === 'Origen no permitido por CORS') {
+    return res.status(403).json({
+      error: 'CORS forbidden',
+      message: 'Origen no permitido por CORS'
+    })
+  }
+
+  next(err)
 })
 
 // Formatear uptime a formato legible

@@ -26,6 +26,13 @@ const getApiBaseUrl = (): string => {
     return import.meta.env.VITE_API_URL
   }
 
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname
+    if (path.startsWith('/monitor')) {
+      return '/monitor'
+    }
+  }
+
   // Usar ruta relativa (./) para que el navegador la resuelva relativa a la ubicación actual
   // Si estamos en /monitor/, ./api/metrics se resolverá como /monitor/api/metrics
   return '.'
@@ -101,12 +108,36 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
   // Función para obtener datos de la API - envuelta en useCallback
   const fetchMetrics = useCallback(async (abortSignal?: AbortSignal): Promise<ResourceData | null> => {
     try {
+      const headers: Record<string, string> = {
+        Accept: 'application/json'
+      }
+      if (import.meta.env.VITE_MONITOR_API_TOKEN) {
+        headers['X-Api-Token'] = import.meta.env.VITE_MONITOR_API_TOKEN
+        headers['Authorization'] = `Bearer ${import.meta.env.VITE_MONITOR_API_TOKEN}`
+      }
+
       const response = await fetch(`${API_URL}/api/metrics`, {
-        signal: abortSignal
+        signal: abortSignal,
+        headers,
+        credentials: 'include',
+        cache: 'no-store'
       })
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('No autorizado. Verifique credenciales.')
+        }
+
+        if (response.status === 429) {
+          throw new Error('Límite de peticiones alcanzado. Reintente en unos segundos.')
+        }
+
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        throw new Error('Respuesta invalida del servidor (no JSON). Verifique el proxy /monitor/api.')
       }
 
       const data: ApiResponse = await response.json()
@@ -131,8 +162,11 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
       console.error('Error fetching metrics:', errorMessage)
 
-      // Lanzar error para que se maneje en el useEffect
-      throw new Error(`Error al conectar: ${errorMessage}`)
+        // Lanzar error para que se maneje en el useEffect
+        const hint = errorMessage.includes('no JSON') ? 'Verifica la ruta /monitor/api/metrics en Nginx.' : null
+        const suffix = hint ? ` ${hint}` : ''
+        throw new Error(`Error al conectar: ${errorMessage}${suffix}`)
+
     }
   }, [])
 
@@ -243,7 +277,7 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
               {error}
             </p>
             <p className={`text-xs mt-2 ${isDark ? 'text-red-300/70' : 'text-red-600/70'}`}>
-              Asegúrate de que el servidor esté corriendo: <code className="px-1 py-0.5 rounded bg-black/10">npm run server</code>
+              Verifica que el servicio de métricas esté disponible.
             </p>
           </div>
         </div>
