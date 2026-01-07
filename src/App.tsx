@@ -6,7 +6,7 @@ import { ResourceMonitor } from "@/components/ResourceMonitor"
 import {
   Moon,
   Sun,
-  SatelliteDish
+  Shield
 } from "lucide-react"
 
 /**
@@ -93,11 +93,14 @@ function App() {
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-md border flex items-center justify-center ${themeClasses.bgCard} ${themeClasses.border}`}>
-                <SatelliteDish className={`w-4 h-4 ${themeClasses.text}`} />
+                <Shield className={`w-4 h-4 ${themeClasses.text}`} />
               </div>
-              <span className={`text-base font-medium ${themeClasses.text}`}>
+              <a
+                href="/"
+                className={`text-base font-medium ${themeClasses.text} transition-opacity hover:opacity-80`}
+              >
                 Telecomunicaciones y Automatismos
-              </span>
+              </a>
             </div>
 
             <div className="flex items-center gap-2">

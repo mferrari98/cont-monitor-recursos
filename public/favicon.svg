@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M4 10a7.31 7.31 0 0 0 10 10Z"/>
-  <path d="m9 15 3-3"/>
-  <path d="M17 13a6 6 0 0 0-6-6"/>
-  <path d="M21 13A10 10 0 0 0 11 3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Fondo oscuro -->
+  <rect width="64" height="64" rx="12" fill="#1a1f2e"/>
+
+  <!-- Border -->
+  <rect width="64" height="64" rx="12" fill="none" stroke="#2a3140" stroke-width="2"/>
+
+  <!-- Shield icon -->
+  <path d="M32 16L20 21V31C20 39 25 45 32 48C39 45 44 39 44 31V21L32 16Z"
+        fill="white"
+        stroke="white"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
 </svg>
