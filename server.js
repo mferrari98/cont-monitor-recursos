@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import express from 'express'
 import cors from 'cors'
 import si from 'systeminformation'
@@ -16,13 +17,23 @@ app.use((req, res, next) => {
 
 const PORT = 3001
 
-const API_TOKEN = process.env.MONITOR_API_TOKEN || ''
+const rawToken = process.env.MONITOR_API_TOKEN || ''
+const API_TOKEN = rawToken || (process.env.NODE_ENV === 'development'
+  ? ''
+  : crypto.randomBytes(24).toString('hex'))
 
-if (!API_TOKEN && process.env.NODE_ENV !== 'development') {
-  console.warn('[WARN] MONITOR_API_TOKEN no configurado. Las metricas quedan expuestas si no hay auth externa.')
+if (!rawToken && API_TOKEN) {
+  console.warn('[WARN] MONITOR_API_TOKEN no configurado. Token generado automaticamente para esta sesion.')
 }
 
 function requireApiToken(req, res, next) {
+  const remoteAddress = req.socket?.remoteAddress || req.connection?.remoteAddress || ''
+  const isLocal = remoteAddress === '127.0.0.1' || remoteAddress === '::1'
+
+  if (isLocal) {
+    return next()
+  }
+
   if (!API_TOKEN) {
     return next()
   }
