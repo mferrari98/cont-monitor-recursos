@@ -111,15 +111,15 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
       const headers: Record<string, string> = {
         Accept: 'application/json'
       }
-      if (import.meta.env.VITE_MONITOR_API_TOKEN) {
-        headers['X-Api-Token'] = import.meta.env.VITE_MONITOR_API_TOKEN
-        headers['Authorization'] = `Bearer ${import.meta.env.VITE_MONITOR_API_TOKEN}`
+      const devToken = import.meta.env.DEV ? import.meta.env.VITE_MONITOR_API_TOKEN : ''
+      if (devToken) {
+        headers['X-Api-Token'] = devToken
+        headers['Authorization'] = `Bearer ${devToken}`
       }
 
       const response = await fetch(`${API_URL}/api/metrics`, {
         signal: abortSignal,
         headers,
-        credentials: 'include',
         cache: 'no-store'
       })
 

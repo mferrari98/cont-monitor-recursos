@@ -6,7 +6,8 @@ import { ResourceMonitor } from "@/components/ResourceMonitor"
 import {
   Moon,
   Sun,
-  Shield
+  Shield,
+  ArrowLeft
 } from "lucide-react"
 
 /**
@@ -104,7 +105,18 @@ function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Theme Toggle */}
+              <Button
+                asChild
+                variant="outline"
+                className={`${themeClasses.bgCard} ${themeClasses.text} border-2 ${themeClasses.border} hover:opacity-80 font-semibold h-8 cursor-pointer`}
+                aria-label="Volver al Portal"
+              >
+                <a href="/">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Volver al Portal
+                </a>
+              </Button>
+
               <Button
                 onClick={toggleTheme}
                 variant="outline"

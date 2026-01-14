@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import express from 'express'
 import cors from 'cors'
 import si from 'systeminformation'
@@ -18,24 +17,31 @@ app.use((req, res, next) => {
 const PORT = 3001
 
 const rawToken = process.env.MONITOR_API_TOKEN || ''
-const API_TOKEN = rawToken || (process.env.NODE_ENV === 'development'
-  ? ''
-  : crypto.randomBytes(24).toString('hex'))
+const API_TOKEN = rawToken.trim()
+const HAS_API_TOKEN = Boolean(API_TOKEN)
 
-if (!rawToken && API_TOKEN) {
-  console.warn('[WARN] MONITOR_API_TOKEN no configurado. Token generado automaticamente para esta sesion.')
+if (!HAS_API_TOKEN && process.env.NODE_ENV !== 'development') {
+  console.warn('[WARN] MONITOR_API_TOKEN no configurado. La API queda sin token.')
 }
 
 function requireApiToken(req, res, next) {
   const remoteAddress = req.socket?.remoteAddress || req.connection?.remoteAddress || ''
   const isLocal = remoteAddress === '127.0.0.1' || remoteAddress === '::1'
 
-  if (isLocal) {
+  if (isLocal && process.env.NODE_ENV === 'development') {
     return next()
   }
 
-  if (!API_TOKEN) {
+  const authUser = req.header('X-Auth-User') || ''
+  if (authUser) {
     return next()
+  }
+
+  if (!HAS_API_TOKEN) {
+    return res.status(503).json({
+      error: 'Unauthorized',
+      message: 'MONITOR_API_TOKEN no configurado'
+    })
   }
 
   const tokenHeader = req.header('X-Api-Token') || ''
@@ -105,16 +111,25 @@ function rateLimitMiddleware(req, res, next) {
 }
 
 // Configuración de CORS con orígenes permitidos
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS?.split(',') || [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://10.10.9.246:5173',
-    'http://10.10.9.246:5174'
-  ])
-    .map(origin => origin.trim())
-    .filter(Boolean)
-)
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://10.10.9.246:5173',
+  'http://10.10.9.246:5174'
+]
+const rawAllowedOrigins = process.env.ALLOWED_ORIGINS || ''
+const envAllowedOrigins = rawAllowedOrigins
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean)
+const allowedOriginsList = envAllowedOrigins.length > 0
+  ? envAllowedOrigins
+  : (process.env.NODE_ENV === 'development' ? DEFAULT_ALLOWED_ORIGINS : [])
+const ALLOWED_ORIGINS = new Set(allowedOriginsList)
+
+if (ALLOWED_ORIGINS.size === 0 && process.env.NODE_ENV !== 'development') {
+  console.warn('[WARN] ALLOWED_ORIGINS vacío. CORS bloqueará orígenes de navegador.')
+}
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -127,7 +142,7 @@ app.use(cors({
       callback(new Error('Origen no permitido por CORS'))
     }
   },
-  credentials: true,
+  credentials: false,
   methods: ['GET']
 }))
 
