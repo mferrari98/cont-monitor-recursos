@@ -104,6 +104,25 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
   const [history, setHistory] = useState<HistoryData>(generateEmptyHistory())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isVisible, setIsVisible] = useState(() => (
+    typeof document === 'undefined' ? true : !document.hidden
+  ))
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    const handleVisibilityChange = () => {
+      setIsVisible(!document.hidden)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
 
   // Función para obtener datos de la API - envuelta en useCallback
   const fetchMetrics = useCallback(async (abortSignal?: AbortSignal): Promise<ResourceData | null> => {
@@ -170,6 +189,31 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
     }
   }, [])
 
+  const refreshMetrics = useCallback(async (abortSignal?: AbortSignal) => {
+    try {
+      const newData = await fetchMetrics(abortSignal)
+
+      if (!newData) {
+        return
+      }
+
+      setResources(newData)
+      setError(null)
+
+      // Actualizar historial
+      const now = new Date()
+      const timeLabel = formatTimeLabel(now)
+
+      setHistory(prev => ({
+        cpu: [...prev.cpu.slice(1), { time: timeLabel, value: newData.cpu }],
+        memory: [...prev.memory.slice(1), { time: timeLabel, value: newData.memory }],
+        disk: [...prev.disk.slice(1), { time: timeLabel, value: newData.disk }]
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error de conexión')
+    }
+  }, [fetchMetrics])
+
   // Cargar datos iniciales
   useEffect(() => {
     const abortController = new AbortController()
@@ -220,38 +264,20 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
 
   // Actualizar datos periódicamente
   useEffect(() => {
-    if (loading) return
+    if (loading || !isVisible) return
+
+    const abortController = new AbortController()
+    refreshMetrics(abortController.signal)
 
     const intervalId = setInterval(async () => {
-      const abortController = new AbortController()
-      try {
-        const newData = await fetchMetrics(abortController.signal)
-
-        if (newData) {
-          setResources(newData)
-          setError(null)
-
-          // Actualizar historial
-          const now = new Date()
-          const timeLabel = formatTimeLabel(now)
-
-          setHistory(prev => ({
-            cpu: [...prev.cpu.slice(1), { time: timeLabel, value: newData.cpu }],
-            memory: [...prev.memory.slice(1), { time: timeLabel, value: newData.memory }],
-            disk: [...prev.disk.slice(1), { time: timeLabel, value: newData.disk }]
-          }))
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error de conexión')
-      } finally {
-        abortController.abort()
-      }
+      refreshMetrics(abortController.signal)
     }, POLL_INTERVAL_MS)
 
     return () => {
+      abortController.abort()
       clearInterval(intervalId)
     }
-  }, [loading, fetchMetrics])
+  }, [loading, isVisible, refreshMetrics])
 
   const isDark = theme === 'dark'
 

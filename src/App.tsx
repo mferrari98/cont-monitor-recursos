@@ -7,7 +7,7 @@ import {
   Moon,
   Sun,
   Shield,
-  ArrowLeft
+  Home
 } from "lucide-react"
 
 /**
@@ -112,7 +112,7 @@ function App() {
                 aria-label="Volver al Portal"
               >
                 <a href="/">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  <Home className="w-4 h-4 mr-2" />
                   Volver al Portal
                 </a>
               </Button>

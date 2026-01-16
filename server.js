@@ -63,6 +63,7 @@ const rateLimitMap = new Map()
 const RATE_LIMIT_WINDOW = 60000 // 1 minuto
 const RATE_LIMIT_MAX_REQUESTS = 100 // 100 peticiones por minuto
 const RATE_LIMIT_CLEANUP_INTERVAL = 60000
+const RATE_LIMIT_MAX_ENTRIES = 10000
 
 setInterval(() => {
   const now = Date.now()
@@ -73,6 +74,16 @@ setInterval(() => {
   }
 }, RATE_LIMIT_CLEANUP_INTERVAL).unref()
 
+function pruneRateLimitMap() {
+  while (rateLimitMap.size > RATE_LIMIT_MAX_ENTRIES) {
+    const oldestKey = rateLimitMap.keys().next().value
+    if (oldestKey === undefined) {
+      break
+    }
+    rateLimitMap.delete(oldestKey)
+  }
+}
+
 function checkRateLimit(req) {
   const ip = req.ip || req.connection.remoteAddress || 'unknown'
   const now = Date.now()
@@ -81,6 +92,7 @@ function checkRateLimit(req) {
     count: 0,
     resetAt: now + RATE_LIMIT_WINDOW
   }
+  const isNewIp = !rateLimitMap.has(ip)
 
   if (now >= record.resetAt) {
     record.count = 0
@@ -89,6 +101,9 @@ function checkRateLimit(req) {
 
   record.count++
   rateLimitMap.set(ip, record)
+  if (isNewIp && rateLimitMap.size > RATE_LIMIT_MAX_ENTRIES) {
+    pruneRateLimitMap()
+  }
 
   return {
     allowed: record.count <= RATE_LIMIT_MAX_REQUESTS,
