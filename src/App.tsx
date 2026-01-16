@@ -3,6 +3,7 @@ import { useThemeClasses } from "@/lib/useThemeClasses"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ResourceMonitor } from "@/components/ResourceMonitor"
+import { LogViewer } from "@/components/LogViewer"
 import {
   Moon,
   Sun,
@@ -85,6 +86,7 @@ function App() {
 
   const themeClasses = useThemeClasses(theme)
   const isDark = theme === 'dark'
+  const isLogView = typeof window !== 'undefined' && window.location.pathname.includes('/logs')
 
   return (
     <div className={`min-h-screen gradient-background relative`}>
@@ -135,17 +137,17 @@ function App() {
             {/* Header */}
             <div className="mb-6 mt-8">
               <h1 className={`text-5xl font-bold tracking-tight ${themeClasses.text} animate-fade-in`}>
-                Monitor de Recursos
+                {isLogView ? 'Logs del Sistema' : 'Monitor de Recursos'}
               </h1>
               <p className={`text-base mt-2 ${themeClasses.textSubtle} animate-fade-in`} style={{ animationDelay: '0.1s' }}>
-                Monitoreo en tiempo real del servidor
+                {isLogView ? 'Consulta de logs con paginado desde el final.' : 'Monitoreo en tiempo real del servidor'}
               </p>
             </div>
 
             <Separator className="mb-8 opacity-50 animate-fade-in" style={{ animationDelay: '0.2s' }} />
 
-            {/* Resource Monitor */}
-            <ResourceMonitor theme={theme} />
+            {/* Main Content */}
+            {isLogView ? <LogViewer theme={theme} /> : <ResourceMonitor theme={theme} />}
 
             {/* Footer Separator */}
             <Separator className="mt-8 mb-4 opacity-50 animate-fade-in" style={{ animationDelay: '0.8s' }} />

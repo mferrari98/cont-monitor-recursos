@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import fs from 'fs/promises'
 import si from 'systeminformation'
 
 const app = express()
@@ -15,6 +16,79 @@ app.use((req, res, next) => {
 })
 
 const PORT = 3001
+const LOG_SOURCES = Object.freeze({
+  nginx: {
+    label: 'Nginx',
+    path: '/logs/nginx/access.log'
+  },
+  'nginx-error': {
+    label: 'Nginx (error)',
+    path: '/logs/nginx/error.log'
+  },
+  reportespiolis: {
+    label: 'Reportespiolis',
+    path: '/logs/reportespiolis/app.log'
+  }
+})
+const DEFAULT_LOG_LIMIT = 300
+const MAX_LOG_LIMIT = 2000
+
+async function readLogPage(filePath, limit, offset, order) {
+  const fileHandle = await fs.open(filePath, 'r')
+  try {
+    const stats = await fileHandle.stat()
+    if (!stats.size) {
+      return { lines: [], hasMore: false }
+    }
+
+    const targetCount = limit + offset
+    const chunkSize = 64 * 1024
+    let position = stats.size
+    let buffer = ''
+    let lines = []
+
+    while (position > 0 && lines.length < targetCount) {
+      const readSize = Math.min(chunkSize, position)
+      position -= readSize
+
+      const chunk = Buffer.alloc(readSize)
+      const { bytesRead } = await fileHandle.read(chunk, 0, readSize, position)
+
+      buffer = chunk.toString('utf8', 0, bytesRead) + buffer
+
+      const parts = buffer.split(/\r?\n/)
+      buffer = parts.shift() || ''
+
+      if (parts.length > 0) {
+        const combined = parts.concat(lines)
+        lines = combined.length > targetCount
+          ? combined.slice(combined.length - targetCount)
+          : combined
+      }
+    }
+
+    if (position === 0 && buffer) {
+      const combined = [buffer, ...lines]
+      lines = combined.length > targetCount
+        ? combined.slice(combined.length - targetCount)
+        : combined
+    }
+
+    if (lines.length > 0 && lines[lines.length - 1] === '') {
+      lines.pop()
+    }
+
+    const end = Math.max(0, lines.length - offset)
+    const start = Math.max(0, end - limit)
+    const pageLines = start < end ? lines.slice(start, end) : []
+    const orderedLines = order === 'asc' ? pageLines : pageLines.reverse()
+    const hasMore = position > 0 || lines.length > offset + limit
+
+    return { lines: orderedLines, hasMore }
+  } finally {
+    await fileHandle.close()
+  }
+}
 
 const rawToken = process.env.MONITOR_API_TOKEN || ''
 const API_TOKEN = rawToken.trim()
@@ -268,6 +342,55 @@ app.get('/api/metrics/history', rateLimitMiddleware, requireApiToken, async (req
   })
 })
 
+app.get('/api/logs', rateLimitMiddleware, requireApiToken, (req, res) => {
+  const sources = Object.entries(LOG_SOURCES).map(([id, source]) => ({
+    id,
+    label: source.label
+  }))
+  res.json({ sources })
+})
+
+app.get('/api/logs/:source', rateLimitMiddleware, requireApiToken, async (req, res) => {
+  const sourceKey = req.params.source
+  const source = LOG_SOURCES[sourceKey]
+
+  if (!source) {
+    return res.status(404).json({
+      error: 'Not found',
+      message: 'Log desconocido'
+    })
+  }
+
+  const order = req.query.order === 'asc' ? 'asc' : 'desc'
+  const rawLimit = Number.parseInt(req.query.limit, 10)
+  const rawOffset = Number.parseInt(req.query.offset, 10)
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(rawLimit, 1), MAX_LOG_LIMIT)
+    : DEFAULT_LOG_LIMIT
+  const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0
+
+  try {
+    const result = await readLogPage(source.path, limit, offset, order)
+
+    res.set('Cache-Control', 'no-store')
+    res.json({
+      source: sourceKey,
+      order,
+      limit,
+      offset,
+      nextOffset: offset + result.lines.length,
+      hasMore: result.hasMore,
+      lines: result.lines
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    res.status(404).json({
+      error: 'Not found',
+      message: `No se pudo leer el log (${message})`
+    })
+  }
+})
+
 app.use('/api', (req, res) => {
   res.status(404).json({
     error: 'Not found',
@@ -312,5 +435,7 @@ app.listen(PORT, HOST, () => {
   console.log(`Servidor de métricas corriendo en http://${HOST}:${PORT}`)
   console.log(`Endpoints disponibles:`)
   console.log(`  - GET /api/metrics      - Métricas actuales del sistema`)
+  console.log(`  - GET /api/logs         - Lista de logs disponibles`)
+  console.log(`  - GET /api/logs/:source - Log completo (order=desc|asc)`)
   console.log(`  - GET /health           - Health check`)
 })

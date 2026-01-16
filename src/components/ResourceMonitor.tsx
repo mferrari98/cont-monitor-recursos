@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { ResourceCard } from "./ResourceCard"
 import { ResourceChart } from "./ResourceChart"
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 import { useThemeClasses } from "@/lib/useThemeClasses"
 import {
   Cpu,
@@ -280,6 +281,16 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
   }, [loading, isVisible, refreshMetrics])
 
   const isDark = theme === 'dark'
+  const handleOpenLogs = (source: 'nginx' | 'nginx-error' | 'reportespiolis') => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const path = window.location.pathname || ''
+    const basePath = path.startsWith('/monitor') ? '/monitor' : ''
+    const url = `${basePath}/logs?source=${source}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   if (loading) {
     return (
@@ -359,6 +370,41 @@ export function ResourceMonitor({ theme }: ResourceMonitorProps) {
       </div>
 
       <Separator className={`opacity-50 ${themeClasses.border}`} />
+
+      {/* Logs */}
+      <div className={`animate-fade-in-up ${themeClasses.bgCard} rounded-md border-2 ${themeClasses.border} p-4`}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className={`text-sm font-semibold ${themeClasses.text}`}>Logs</h3>
+            <p className={`text-xs mt-1 ${themeClasses.textMuted}`}>
+              Abrir el log completo en una nueva pestaña (más reciente primero).
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <Button
+              onClick={() => handleOpenLogs('nginx')}
+              variant="outline"
+              className={`${themeClasses.bgCard} ${themeClasses.text} border-2 ${themeClasses.border} hover:opacity-80 font-semibold h-8`}
+            >
+              Abrir log Nginx
+            </Button>
+            <Button
+              onClick={() => handleOpenLogs('nginx-error')}
+              variant="outline"
+              className={`${themeClasses.bgCard} ${themeClasses.text} border-2 ${themeClasses.border} hover:opacity-80 font-semibold h-8`}
+            >
+              Abrir log Nginx error
+            </Button>
+            <Button
+              onClick={() => handleOpenLogs('reportespiolis')}
+              variant="outline"
+              className={`${themeClasses.bgCard} ${themeClasses.text} border-2 ${themeClasses.border} hover:opacity-80 font-semibold h-8`}
+            >
+              Abrir log Reportespiolis
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
