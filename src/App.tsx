@@ -136,6 +136,11 @@ function App() {
           <div className="max-w-5xl mx-auto">
             {/* Header */}
             <div className="mb-6 mt-8">
+              <div className={`text-sm ${themeClasses.textMuted} flex items-center gap-2 animate-fade-in`}>
+                <a href="/" className="hover:underline">Portal</a>
+                <span>/</span>
+                <span>Monitor</span>
+              </div>
               <h1 className={`text-5xl font-bold tracking-tight ${themeClasses.text} animate-fade-in`}>
                 {isLogView ? 'Logs del Sistema' : 'Monitor de Recursos'}
               </h1>
