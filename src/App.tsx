@@ -8,7 +8,6 @@ import {
   Moon,
   Sun,
   Shield,
-  Home
 } from "lucide-react"
 
 /**
@@ -110,13 +109,10 @@ function App() {
               <Button
                 asChild
                 variant="outline"
-                className={`${themeClasses.bgCard} ${themeClasses.text} border-2 ${themeClasses.border} hover:opacity-80 font-semibold h-8 cursor-pointer`}
-                aria-label="Volver al Portal"
+                className={`border-2 ${themeClasses.border} ${themeClasses.text} rounded-md h-8 px-3 gap-2 font-semibold hover:cursor-pointer`}
+                aria-label="Volver al portal"
               >
-                <a href="/">
-                  <Home className="w-4 h-4 mr-2" />
-                  Volver al Portal
-                </a>
+                <a href="/">Volver al portal</a>
               </Button>
 
               <Button
@@ -141,7 +137,7 @@ function App() {
                 <span>/</span>
                 <span>Monitor</span>
               </div>
-              <h1 className={`text-5xl font-bold tracking-tight ${themeClasses.text} animate-fade-in`}>
+              <h1 className={`text-4xl font-bold tracking-tight ${themeClasses.text} mt-2 animate-fade-in`}>
                 {isLogView ? 'Logs del Sistema' : 'Monitor de Recursos'}
               </h1>
               <p className={`text-base mt-2 ${themeClasses.textSubtle} animate-fade-in`} style={{ animationDelay: '0.1s' }}>
